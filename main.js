@@ -2,44 +2,106 @@
 function openModal(postId) {
     const modal = document.getElementById('postModal');
     if (modal) {
-        document.body.classList.add('modal-open'); 
+        document.body.classList.add('modal-open');
         modal.classList.remove('hidden');
         modal.classList.add('flex');
     }
 
-    // console.log(postId);
+    // Fetch post details and comments
+    fetch(`https://basic-blog.teamrabbil.com/api/post-details/${postId}`)
+        .then((response) => response.json())
+        .then((data) => {
+            // Set post image and content
+            document.querySelector('#postImage').setAttribute('src', data.postDetails.img);
+            document.querySelector('#postContent').textContent = data.postDetails.content;
 
-    fetch(
-        `https://basic-blog.teamrabbil.com/api/post-details/${postId}`
-    )
-    .then((response) => response.json())
-    .then((data) => {
-        document.querySelector('#postImage').setAttribute('src', data.postDetails.img);
-        document.querySelector('#postContent').textContent = data.postDetails.content;
-        const commentList = document.querySelector('#commentList');
-        data.postComments.forEach((el) => {
-            // Format the date dynamically
-            const date = new Date(el.updated_at);
-            const options = { year: 'numeric', month: 'long', day: 'numeric' };
-            const formattedDate = new Intl.DateTimeFormat('en-US', options).format(date);
+            // Load existing comments
+            loadComments(data);
 
-            commentList.innerHTML +=`
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div class="flex items-center gap-3 mb-3">
-                        <div
-                            class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-semibold">
-                            ${el.author[0].toUpperCase()}
-                        </div>
-                        <div>
-                            <div class="font-semibold text-gray-800">${el.author}</div>
-                            <div class="text-sm text-gray-500">${formattedDate}</div>
-                        </div>
+            // Set up form submission
+            setupCommentForm(postId);
+        })
+        .catch((error) => console.error('Error fetching post details:', error));
+}
+
+// Function to load comments dynamically
+function loadComments(data) {
+    const commentList = document.querySelector('#commentList');
+    commentList.innerHTML = ''; // Clear existing comments
+
+    data.postComments.forEach((el) => {
+        const date = new Date(el.updated_at);
+        const options = { year: 'numeric', month: 'long', day: 'numeric' };
+        const formattedDate = new Intl.DateTimeFormat('en-US', options).format(date);
+
+        commentList.innerHTML += `
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-semibold">
+                        ${el.author[0].toUpperCase()}
                     </div>
-                    <p class="text-gray-600 leading-relaxed">Great introduction to TailwindCSS! The examples
-                        were very helpful.</p>
+                    <div>
+                        <div class="font-semibold text-gray-800">${el.author}</div>
+                        <div class="text-sm text-gray-500">${formattedDate}</div>
+                    </div>
                 </div>
-            `;
+                <p class="text-gray-600 leading-relaxed">${el.comment}</p>
+            </div>
+        `;
+    });
+}
+
+// Function to set up the comment form
+function setupCommentForm(postId) {
+    const commentForm = document.getElementById('commentForm');
+
+    // Remove existing event listeners (if any) to prevent duplicate handlers
+    commentForm.replaceWith(commentForm.cloneNode(true));
+    const newCommentForm = document.getElementById('commentForm');
+
+    newCommentForm.addEventListener('submit', function (event) {
+        event.preventDefault(); // Prevent the default form submission
+
+        // Create a new FormData object from the form
+        const formData = new FormData(newCommentForm);
+
+        // Add the custom key-value pair (list_id)
+        const customData = new FormData();
+        customData.append('list_id', postId);
+
+        // Add all the form data to the customData object
+        formData.forEach((value, key) => {
+            customData.append(key, value);
         });
+
+        // Convert FormData to a plain object
+        const formObject = {};
+        customData.forEach((value, key) => {
+            formObject[key] = value;
+        });
+
+        // Send the data via a POST request
+        fetch('https://basic-blog.teamrabbil.com/api/create-comment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formObject),
+        })
+            .then((response) => response.json())
+            .then((data) => {
+                console.log('Success:', data);
+                newCommentForm.reset(); // Reset the form
+
+                // Reload comments
+                fetch(`https://basic-blog.teamrabbil.com/api/post-details/${postId}`)
+                    .then((response) => response.json())
+                    .then((updatedData) => {
+                        loadComments(updatedData); // Refresh the comments list
+                    })
+                    .catch((error) => console.error('Error reloading comments:', error));
+            })
+            .catch((error) => console.error('Error submitting comment:', error));
     });
 }
 
